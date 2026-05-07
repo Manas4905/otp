@@ -154,7 +154,6 @@ function startGenerateCooldown(seconds) {
     generateInterval = null;
     generateCountdown.hidden = true;
     generateBtn.hidden = false;
-    generateBtn.focus();
   }, 1000);
 }
 
