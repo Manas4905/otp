@@ -51,11 +51,17 @@
         />
         <button id="verifyBtn" type="submit" disabled>Verify OTP</button>
       </form>
-      <p id="statusMessage" class="status" role="status"></p>
       <p id="expiryTimer" class="expiry" aria-live="polite"></p>
+      <p id="statusMessage" class="status" role="status"></p>
     </div>
     <div id="noticeOverlay" class="notice-overlay" hidden>
-      <div id="noticeBox" class="notice" role="dialog" aria-modal="true" aria-live="polite">
+      <div
+        id="noticeBox"
+        class="notice"
+        role="dialog"
+        aria-modal="true"
+        aria-live="polite"
+      >
         <p id="noticeText"></p>
         <button id="noticeAction" type="button"></button>
       </div>

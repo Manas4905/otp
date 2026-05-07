@@ -11,6 +11,9 @@ const noticeAction = document.getElementById("noticeAction");
 const statusMessage = document.getElementById("statusMessage");
 const expiryTimer = document.getElementById("expiryTimer");
 
+const OTP_STORAGE_KEY = "otp-generator-state";
+const OTP_DURATION_MS = 300000;
+
 let currentOtp = null;
 let otpExpiresAt = null;
 let expireTimer = null;
@@ -21,6 +24,27 @@ let noticeActionHandler = null;
 function updateStatus(text, isError = false) {
   statusMessage.textContent = text;
   statusMessage.style.color = isError ? "#d93025" : "#0f3557";
+}
+
+function saveOtpState() {
+  if (!currentOtp || !otpExpiresAt) {
+    localStorage.removeItem(OTP_STORAGE_KEY);
+    return;
+  }
+
+  localStorage.setItem(
+    OTP_STORAGE_KEY,
+    JSON.stringify({
+      otp: currentOtp,
+      expiresAt: otpExpiresAt,
+    }),
+  );
+}
+
+function clearOtpState() {
+  currentOtp = null;
+  otpExpiresAt = null;
+  localStorage.removeItem(OTP_STORAGE_KEY);
 }
 
 function hideNotice() {
@@ -69,15 +93,29 @@ function startExpireTimer() {
     updateExpiryDisplay();
   }, 1000);
 
-  expireTimer = setTimeout(() => {
-    currentOtp = null;
-    otpExpiresAt = null;
+  const remainingMs = otpExpiresAt - Date.now();
+  if (remainingMs <= 0) {
+    clearOtpState();
     otpValue.textContent = "------";
     updateStatus("OTP expired. Please generate a new OTP.", true);
     verifyBtn.disabled = true;
     updateExpiryDisplay();
+    hideNotice();
     clearInterval(expireInterval);
-  }, 300000); // 5 minutes
+    stopGenerateCooldown();
+    return;
+  }
+
+  expireTimer = setTimeout(() => {
+    clearOtpState();
+    otpValue.textContent = "------";
+    updateStatus("OTP expired. Please generate a new OTP.", true);
+    verifyBtn.disabled = true;
+    updateExpiryDisplay();
+    hideNotice();
+    clearInterval(expireInterval);
+    stopGenerateCooldown();
+  }, remainingMs);
 }
 
 function stopExpireTimer() {
@@ -86,6 +124,13 @@ function stopExpireTimer() {
   expireTimer = null;
   expireInterval = null;
   updateExpiryDisplay();
+}
+
+function stopGenerateCooldown() {
+  clearInterval(generateInterval);
+  generateInterval = null;
+  generateCountdown.hidden = true;
+  generateBtn.hidden = false;
 }
 
 function startGenerateCooldown(seconds) {
@@ -116,11 +161,11 @@ function startGenerateCooldown(seconds) {
 function generateOtp() {
   hideNotice();
   currentOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  otpExpiresAt = Date.now() + OTP_DURATION_MS;
+  saveOtpState();
   otpValue.textContent = currentOtp;
   otpInput.value = "";
   otpInput.focus();
-  updateStatus("OTP generated and valid for 5 minutes.");
-  otpExpiresAt = Date.now() + 300000;
   verifyBtn.disabled = true;
   startExpireTimer();
   updateExpiryDisplay();
@@ -134,12 +179,13 @@ function verifyOtp(event) {
 
   const enteredValue = otpInput.value;
   if (!currentOtp || !otpExpiresAt || Date.now() > otpExpiresAt) {
-    currentOtp = null;
-    otpExpiresAt = null;
+    clearOtpState();
     otpValue.textContent = "------";
     updateStatus("OTP expired. Please generate a new OTP.", true);
     verifyBtn.disabled = true;
     stopExpireTimer();
+    stopGenerateCooldown();
+    hideNotice();
     return;
   }
 
@@ -154,9 +200,9 @@ function verifyOtp(event) {
       },
     });
     verifyBtn.disabled = true;
-    currentOtp = null;
-    otpExpiresAt = null;
+    clearOtpState();
     stopExpireTimer();
+    stopGenerateCooldown();
     otpValue.textContent = "------";
   } else {
     showNotice({
@@ -178,6 +224,43 @@ function checkInput() {
   verifyBtn.disabled = value.length !== 6 || !currentOtp;
 }
 
+function restoreOtpState() {
+  const raw = localStorage.getItem(OTP_STORAGE_KEY);
+  if (!raw) {
+    otpValue.textContent = "------";
+    updateStatus("Click Generate OTP to begin.");
+    expiryTimer.textContent = "";
+    hideNotice();
+    return;
+  }
+
+  try {
+    const stored = JSON.parse(raw);
+    if (!stored.otp || !stored.expiresAt || Date.now() >= stored.expiresAt) {
+      clearOtpState();
+      otpValue.textContent = "------";
+      updateStatus("Click Generate OTP to begin.");
+      expiryTimer.textContent = "";
+      hideNotice();
+      return;
+    }
+
+    currentOtp = stored.otp;
+    otpExpiresAt = stored.expiresAt;
+    otpValue.textContent = currentOtp;
+    verifyBtn.disabled = otpInput.value.replace(/\D/g, "").length !== 6;
+    updateExpiryDisplay();
+    hideNotice();
+    startExpireTimer();
+  } catch {
+    clearOtpState();
+    otpValue.textContent = "------";
+    updateStatus("Click Generate OTP to begin.");
+    expiryTimer.textContent = "";
+    hideNotice();
+  }
+}
+
 generateBtn.addEventListener("click", generateOtp);
 otpForm.addEventListener("submit", verifyOtp);
 otpInput.addEventListener("input", checkInput);
@@ -187,8 +270,5 @@ noticeAction.addEventListener("click", () => {
   }
 });
 window.addEventListener("load", () => {
-  otpValue.textContent = "------";
-  updateStatus("Click Generate OTP to begin.");
-  expiryTimer.textContent = "";
-  hideNotice();
+  restoreOtpState();
 });
