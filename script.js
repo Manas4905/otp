@@ -165,6 +165,7 @@ function generateOtp() {
   otpValue.textContent = currentOtp;
   otpInput.value = "";
   otpInput.focus();
+  statusMessage.textContent = "";
   verifyBtn.disabled = true;
   startExpireTimer();
   updateExpiryDisplay();
